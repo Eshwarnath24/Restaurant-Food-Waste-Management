@@ -71,11 +71,55 @@ export default function App() {
     return () => supabase.removeChannel(channel)
   }, [loadFoods, loadSessions, loadThumbnails])
 
+  // ── Browser history integration (mobile back button) ─────
+  useEffect(() => {
+    function handlePopState(e) {
+      const state = e.state
+      if (state && state.page) {
+        setPage(state.page)
+        if (state.page === 'order' && state.sessionId) {
+          setSessionId(state.sessionId)
+          setTableNumber(state.tableNumber || '')
+        } else if (state.page === 'foodDetail' && state.foodId) {
+          const found = foods.find(f => f.id === state.foodId)
+          if (found) {
+            setSelectedFood(found)
+          } else {
+            setPage('menu')
+            setSelectedFood(null)
+          }
+        } else {
+          setSessionId(null)
+          setTableNumber('')
+          setSelectedFood(null)
+          if (state.page === 'sessions') loadSessions()
+          if (state.page === 'menu') loadThumbnails()
+        }
+      } else {
+        // No state — go to menu
+        setPage('menu')
+        setSessionId(null)
+        setTableNumber('')
+        setSelectedFood(null)
+      }
+    }
+
+    window.addEventListener('popstate', handlePopState)
+
+    // Replace initial state
+    if (!window.history.state?.page) {
+      window.history.replaceState({ page: 'menu' }, '')
+    }
+
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [foods, loadSessions, loadThumbnails])
+
   // ── Navigation ────────────────────────────────────────────
   function openSession(id, tableNum) {
     setSessionId(id)
     setTableNumber(tableNum)
     setPage('order')
+    window.history.pushState({ page: 'order', sessionId: id, tableNumber: tableNum }, '')
   }
 
   function goBackFromOrder() {
@@ -83,17 +127,20 @@ export default function App() {
     setSessionId(null)
     setTableNumber('')
     loadSessions()
+    window.history.back()
   }
 
   function openFoodDetail(food) {
     setSelectedFood(food)
     setPage('foodDetail')
+    window.history.pushState({ page: 'foodDetail', foodId: food.id }, '')
   }
 
   function goBackFromFoodDetail() {
     setSelectedFood(null)
     setPage('menu')
     loadThumbnails()
+    window.history.back()
   }
 
   // ── Session callbacks (immediate local state) ─────────────
@@ -179,7 +226,7 @@ export default function App() {
           <button
             type="button"
             className={`tab-btn ${page === 'menu' ? 'active' : ''}`}
-            onClick={() => setPage('menu')}
+            onClick={() => { setPage('menu'); window.history.replaceState({ page: 'menu' }, '') }}
             aria-label="Menu tab"
           >
             <span className="tab-icon">🍽️</span>
@@ -188,7 +235,7 @@ export default function App() {
           <button
             type="button"
             className={`tab-btn ${page === 'sessions' ? 'active' : ''}`}
-            onClick={() => setPage('sessions')}
+            onClick={() => { setPage('sessions'); window.history.replaceState({ page: 'sessions' }, '') }}
             aria-label="Orders tab"
           >
             <span className="tab-icon">📋</span>
